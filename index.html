@@ -1,0 +1,1344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
+    <title>Pathaake</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #05050a;
+            --text-color: rgba(255, 255, 255, 0.9);
+            --glow-color: #FFD700;
+            --panel-bg: rgba(20, 20, 25, 0.6);
+            --panel-border: rgba(255, 255, 255, 0.1);
+            --slider-track: rgba(255, 255, 255, 0.1);
+            --slider-thumb: rgba(255, 255, 255, 0.8);
+            --overlay-bg: rgba(12, 12, 14, 0.28);
+            --vignette-color: rgba(0, 0, 0, 0.3);
+            --edge-shimmer: rgba(255, 255, 255, 0.05);
+            --panel-shadow: rgba(0, 0, 0, 0.2);
+        }
+
+        [data-theme="day"] {
+            --bg-color: #e0e8f0;
+            --text-color: rgba(0, 0, 0, 0.9);
+            --glow-color: #E67E22;
+            --panel-bg: rgba(255, 255, 255, 0.6);
+            --panel-border: rgba(0, 0, 0, 0.1);
+            --slider-track: rgba(0, 0, 0, 0.1);
+            --slider-thumb: rgba(0, 0, 0, 0.8);
+            --overlay-bg: rgba(245, 245, 247, 0.14);
+            --vignette-color: rgba(255, 255, 255, 0.3);
+            --edge-shimmer: rgba(0, 0, 0, 0.05);
+            --panel-shadow: rgba(100, 100, 100, 0.15);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            overflow: hidden;
+            touch-action: none;
+            transition: background-color 0.5s ease;
+        }
+        
+        #bg-video {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            min-width: 150%; /* Wider for panning */
+            min-height: 100%;
+            width: auto;
+            height: auto;
+            z-index: -1;
+            transform: translate(-50%, -50%);
+            opacity: 0.7;
+            transition: opacity 0.5s ease-in-out;
+        }
+
+        #background-overlay {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            width: 150%; /* Wider for panning */
+            height: 110%;
+            z-index: 0;
+            transform: translate(-50%, -50%);
+            background-color: var(--overlay-bg);
+            background-image: 
+                radial-gradient(ellipse at center, rgba(0,0,0,0) 0%, var(--vignette-color) 100%),
+                url("data:image/svg+xml,%3Csvg width='100' height='100' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100' height='100' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+            backdrop-filter: blur(10px); /* Reduced blur */
+            -webkit-backdrop-filter: blur(10px);
+            box-shadow: inset 0 0 0 1px var(--edge-shimmer);
+            transition: background-color 300ms ease-out, box-shadow 300ms ease-out;
+        }
+
+        #fireworksCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            transition: transform 0.1s ease-out; /* For screen shake */
+        }
+
+        #welcomeMessage {
+            position: absolute;
+            top: 3%;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 2.5vmin;
+            font-weight: 500;
+            color: var(--text-color);
+            text-shadow: 0 0 15px var(--glow-color), 0 0 25px var(--glow-color);
+            opacity: 0;
+            animation: fadeInGlow 3s ease-out 1s forwards;
+            z-index: 10;
+            pointer-events: none;
+            transition: color 0.5s ease, text-shadow 0.5s ease;
+        }
+        
+        #combo-meter {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 10;
+            font-size: 3vmin;
+            font-weight: 700;
+            color: var(--text-color);
+            text-shadow: 0 0 10px var(--glow-color);
+            opacity: 0;
+            transform: scale(0.5);
+            transition: opacity 0.3s ease, transform 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+        }
+        
+        #combo-meter.visible {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        #combo-meter.pop {
+            animation: pop 0.2s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+        }
+
+        @keyframes pop {
+            50% { transform: scale(1.4); }
+            100% { transform: scale(1); }
+        }
+
+        @keyframes fadeInGlow {
+            to {
+                opacity: 1;
+            }
+        }
+
+        .controls-panel {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            background-color: var(--panel-bg);
+            backdrop-filter: blur(12px) saturate(180%);
+            -webkit-backdrop-filter: blur(12px) saturate(180%);
+            border: 1px solid var(--panel-border);
+            border-radius: 16px;
+            padding: 12px 15px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            z-index: 20;
+            opacity: 0;
+            pointer-events: none;
+            transform: translateX(-50%) translateY(120%);
+            transition: opacity 400ms ease-in-out, transform 400ms ease-in-out, background-color 0.5s ease, border-color 0.5s ease, box-shadow 0.5s ease;
+            box-shadow: 0 10px 18px var(--panel-shadow);
+        }
+
+        .controls-panel.visible {
+            opacity: 1;
+            pointer-events: auto;
+            transform: translateX(-50%) translateY(0);
+        }
+        
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .control-group label {
+            font-size: 12px;
+            font-weight: 500;
+            opacity: 0.7;
+        }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100px;
+            height: 4px;
+            background: var(--slider-track);
+            border-radius: 5px;
+            outline: none;
+            transition: background-color 0.5s ease;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 14px;
+            height: 14px;
+            background: var(--slider-thumb);
+            cursor: pointer;
+            border-radius: 50%;
+            border: 2px solid var(--panel-bg);
+            transition: background-color 0.5s ease, border-color 0.5s ease;
+        }
+        
+        input[type="range"]::-moz-range-thumb {
+            width: 14px;
+            height: 14px;
+            background: var(--slider-thumb);
+            cursor: pointer;
+            border-radius: 50%;
+             border: 2px solid var(--panel-bg);
+        }
+
+        .control-button {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-color);
+            transition: color 0.5s ease, transform 0.2s ease;
+        }
+        .control-button:hover {
+            transform: scale(1.1);
+        }
+        .control-button svg {
+            width: 20px;
+            height: 20px;
+            stroke: currentColor;
+            stroke-width: 1.5;
+            fill: none;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            transition: transform 0.3s ease;
+        }
+        .control-button.active svg {
+            fill: currentColor;
+            stroke: var(--panel-bg);
+        }
+        .control-button:active {
+            transform: scale(0.95) translateY(1px);
+        }
+        #themeBtn:hover svg {
+            transform: rotate(45deg);
+        }
+        #finaleBtn:hover svg {
+            animation: sparkle 1s infinite;
+        }
+        @keyframes sparkle {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.6; transform: scale(1.2); }
+        }
+
+        .separator {
+            width: 1px;
+            height: 20px;
+            background-color: var(--panel-border);
+            transition: background-color 0.5s ease;
+        }
+
+        #controls-toggle-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 21;
+        }
+        
+        #toggleControlsBtn {
+            background-color: var(--panel-bg);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid var(--panel-border);
+            border-radius: 50%;
+            padding: 8px;
+            box-shadow: 0 4px 12px var(--panel-shadow);
+        }
+        #toggleControlsBtn svg {
+             fill: currentColor;
+        }
+
+        /* Initial state overlay */
+        #start-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            z-index: 100;
+            cursor: pointer;
+        }
+
+        #start-overlay h1 {
+            font-size: 5vmin;
+            color: white;
+            text-shadow: 0 0 10px var(--glow-color);
+            margin-bottom: 20px;
+        }
+        
+        #diya-container {
+            width: 10vmin;
+            height: 10vmin;
+            position: relative;
+        }
+        .flame {
+            position: absolute;
+            bottom: 60%; left: 50%;
+            transform: translateX(-50%);
+            width: 3vmin; height: 5vmin;
+            background: radial-gradient(circle, white 5%, yellow 30%, orange 60%, orangered 80%);
+            border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+            animation: flicker 1.5s infinite;
+        }
+        .diya {
+            position: absolute;
+            bottom: 0; left: 0;
+            width: 100%; height: 50%;
+            background: #e67e22;
+            border-radius: 50% / 100%;
+            border-bottom-left-radius: 0;
+            border-bottom-right-radius: 0;
+            clip-path: polygon(0 20%, 100% 20%, 100% 100%, 0 100%);
+        }
+        @keyframes flicker {
+            0%, 100% { transform: translateX(-50%) scaleY(1) rotate(0deg); }
+            50% { transform: translateX(-45%) scaleY(1.05) rotate(2deg); }
+        }
+
+        #start-overlay p {
+            font-size: 2vmin;
+            color: rgba(255,255,255,0.7);
+            margin-top: 20px;
+        }
+        
+        #mission-notifier {
+            position: fixed;
+            top: 20px;
+            right: -100%;
+            z-index: 11;
+            background-color: var(--panel-bg);
+            padding: 15px 20px;
+            border-radius: 12px;
+            border: 1px solid var(--panel-border);
+            font-weight: 500;
+            box-shadow: var(--panel-shadow);
+            transition: right 0.5s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+        }
+        #mission-notifier.visible {
+            right: 20px;
+        }
+
+
+        @media (max-width: 600px) {
+            .controls-panel {
+                flex-direction: column;
+                padding: 15px;
+                gap: 12px;
+                align-items: stretch;
+                width: 90%;
+            }
+             .control-group {
+                justify-content: space-between;
+             }
+             .button-group {
+                display: flex;
+                justify-content: space-around;
+                border-top: 1px solid var(--panel-border);
+                padding-top: 10px;
+                margin-top: 5px;
+             }
+        }
+    </style>
+</head>
+<body>
+    <video autoplay loop muted playsinline id="bg-video">
+        <source src="vid.mp4" type="video/mp4">
+    </video>
+    <div id="background-overlay"></div>
+    <div id="welcomeMessage">Happpyyyy Diwaliiiiii</div>
+    <div id="combo-meter"></div>
+    <div id="mission-notifier"></div>
+    <canvas id="fireworksCanvas"></canvas>
+
+    <div id="start-overlay">
+        <h1>Pathaaka simulator </h1>
+        <div id="diya-container">
+            <div class="flame"></div>
+            <div class="diya"></div>
+        </div>
+        <p>Diyaa jalao</p>
+    </div>
+
+    <div class="controls-panel">
+        <div class="control-group">
+            <label for="gravity">Gravity</label>
+            <input type="range" id="gravity" min="0.005" max="0.05" step="0.001" value="0.015">
+        </div>
+        <div class="control-group">
+            <label for="wind">Wind</label>
+            <input type="range" id="wind" min="-0.03" max="0.03" step="0.001" value="0">
+        </div>
+        <div class="separator"></div>
+        <div class="button-group">
+            <button class="control-button" id="sparklerBtn" title="Sparkler Mode">
+                <svg viewBox="0 0 24 24"><path d="M11.3,2.5c0,0,2.1,4.1,2.1,8.4s-2.1,8.4-2.1,8.4S9.2,15,9.2,10.8S11.3,2.5,11.3,2.5z M12.7,2.5c0,0-2.1,4.1-2.1,8.4 s2.1,8.4,2.1,8.4s2.1-4.1,2.1-8.4S12.7,2.5,12.7,2.5z M6.1,6.8c0,0,3.4,3.2,3.4,6.7C9.5,17,6.1,20,6.1,20S2.7,17,2.7,13.5 C2.7,10,6.1,6.8,6.1,6.8z M17.9,6.8c0,0-3.4,3.2-3.4,6.7c0,3.5,3.4,6.5,3.4,6.5s3.4-3,3.4-6.5C21.3,10,17.9,6.8,17.9,6.8z M8.1,21.5 c0,0,3.9-1.3,3.9-2.9s-3.9-2.9-3.9-2.9s-3.9,1.3-3.9,2.9S8.1,21.5,8.1,21.5z M15.9,21.5c0,0-3.9-1.3-3.9-2.9s3.9-2.9,3.9-2.9 s3.9,1.3,3.9,2.9S15.9,21.5,15.9,21.5z"/></svg>
+            </button>
+             <button class="control-button" id="finaleBtn" title="Launch Finale">
+                <svg viewBox="0 0 24 24"><path d="M12 2L9 9l-7 2.5 7 2.5 3 7 3-7 7-2.5-7-2.5L12 2z" stroke="currentColor" fill="none"/><path d="M20 20L17 13l-7-2.5 7-2.5 3 7z" stroke="currentColor" fill="none"/></svg>
+            </button>
+            <button class="control-button" id="clearBtn" title="Clear Sky">
+                 <svg viewBox="0 0 24 24"><path d="M18 6L6 18"></path><path d="M6 6l12 12"></path></svg>
+            </button>
+            <button class="control-button" id="themeBtn" title="Toggle Day/Night Mode">
+                <svg id="themeIcon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+            </button>
+            <button class="control-button active" id="soundBtn" title="Toggle Sound">
+                <svg id="soundIcon" viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+            </button>
+            <button class="control-button" id="recordBtn" title="Record 10s Clip">
+                 <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><circle id="recordIndicator" cx="12" cy="12" r="4" fill="red" visibility="hidden"></circle></svg>
+            </button>
+        </div>
+    </div>
+    
+    <div id="controls-toggle-container">
+        <button class="control-button" id="toggleControlsBtn" title="Toggle Controls">
+            <svg viewBox="0 0 24 24"><path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.23C14.38,2.01,14.19,1.85,13.96,1.85 h-3.92c-0.23,0-0.42,0.15-0.44,0.38L9.22,4.86c-0.59,0.24-1.12,0.56-1.62,0.94l-2.39-0.96c-0.22-0.08-0.47,0-0.59,0.22 l-1.92,3.32c-0.11,0.2-0.06,0.47,0.12,0.61l2.03,1.58C3.02,11.36,3,11.68,3,12s0.02,0.64,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.38,2.62 c0.02,0.22,0.21,0.38,0.44,0.38h3.92c0.23,0,0.42-0.15,0.44-0.38l0.38-2.62c0.59-0.24,1.12-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.11-0.2,0.06-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"></path></svg>
+        </button>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const canvas = document.getElementById('fireworksCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            // --- UI Elements ---
+            const backgroundOverlay = document.getElementById('background-overlay');
+            const bgVideo = document.getElementById('bg-video');
+            const comboMeter = document.getElementById('combo-meter');
+            const missionNotifier = document.getElementById('mission-notifier');
+            const controlsPanel = document.querySelector('.controls-panel');
+            const toggleControlsBtn = document.getElementById('toggleControlsBtn');
+            const gravitySlider = document.getElementById('gravity');
+            const windSlider = document.getElementById('wind');
+            const clearBtn = document.getElementById('clearBtn');
+            const finaleBtn = document.getElementById('finaleBtn');
+            const sparklerBtn = document.getElementById('sparklerBtn');
+            const themeBtn = document.getElementById('themeBtn');
+            const soundBtn = document.getElementById('soundBtn');
+            const recordBtn = document.getElementById('recordBtn');
+            const recordIndicator = document.getElementById('recordIndicator');
+            const startOverlay = document.getElementById('start-overlay');
+
+            let width, height, worldWidth;
+            let fireworks = [];
+            let particles = [];
+            let starfield = [];
+            let cameraX = 0;
+            
+            let lastTime = 0;
+
+            // --- Game State ---
+            let sparklerMode = false;
+            let lastPointerPos = { x: 0, y: 0 };
+            let comboCount = 0;
+            let comboTimeout;
+            let screenShake = { intensity: 0, duration: 0 };
+            let currentMission = {};
+
+
+            // --- Settings ---
+            let settings = {
+                gravity: 0.015,
+                wind: 0,
+                sound: true,
+                theme: 'night'
+            };
+            
+            // --- Audio ---
+            let audioContext;
+            const sounds = {
+                launch: [
+                    'https://cdn.pixabay.com/audio/2022/03/15/audio_73109b8529.mp3',
+                    'https://cdn.pixabay.com/audio/2022/03/15/audio_2c87b5a151.mp3',
+                ],
+                explode: [
+                    'https://cdn.pixabay.com/audio/2023/07/28/audio_8e40a02c52.mp3',
+                    'https://cdn.pixabay.com/audio/2022/11/17/audio_886928f7fb.mp3',
+                    'https://cdn.pixabay.com/audio/2022/08/11/audio_40b28dce54.mp3',
+                    'https://cdn.pixabay.com/audio/2022/02/07/audio_034b205933.mp3',
+                ],
+                crackle: 'https://cdn.pixabay.com/audio/2024/05/17/audio_f55f6979a0.mp3',
+                fizz: 'https://cdn.pixabay.com/audio/2023/08/02/audio_51c633a693.mp3',
+                mission: 'https://cdn.pixabay.com/audio/2022/10/13/audio_70b2408544.mp3',
+                ambient: 'https://cdn.pixabay.com/audio/2024/02/09/audio_44735e76a6.mp3'
+            };
+            let audioBuffers = {};
+            let ambientSource = null;
+            let fizzSource = null;
+
+            // --- Media Recorder ---
+            let mediaRecorder;
+            let recordedChunks = [];
+            let isRecording = false;
+            
+            const FIREWORK_TYPES = {
+                AERIAL_BURST: 'AERIAL_BURST',
+                ROCKET: 'ROCKET',
+                FOUNTAIN: 'FOUNTAIN',
+                GROUND_CRACKER: 'GROUND_CRACKER',
+                WILLOW: 'WILLOW',
+                CROSSETTE: 'CROSSETTE',
+                RING: 'RING',
+                PEONY: 'PEONY',
+                MULTI_BREAK: 'MULTI_BREAK',
+                CHAKRI: 'CHAKRI'
+            };
+
+            const COLORS = [
+                { r: 255, g: 215, b: 0 },   // Gold
+                { r: 255, g: 69, b: 0 },    // Red-Orange
+                { r: 0, g: 255, b: 255 },  // Cyan
+                { r: 138, g: 43, b: 226 }, // Blue-Violet
+                { r: 255, g: 255, b: 255 }, // White
+            ];
+
+            // --- Initialization ---
+            function init() {
+                resizeCanvas();
+                loadSettings();
+                createStarfield();
+                generateNewMission();
+                
+                // Event Listeners
+                window.addEventListener('resize', resizeCanvas);
+                canvas.addEventListener('pointerdown', handlePointerDown);
+                canvas.addEventListener('pointerup', () => { if (sparklerMode) stopFizzSound(); });
+                canvas.addEventListener('pointerleave', () => { if (sparklerMode) stopFizzSound(); });
+                canvas.addEventListener('pointermove', handlePointerMove);
+                window.addEventListener('mousemove', handleCameraPan);
+                window.addEventListener('deviceorientation', handleDeviceTilt, true);
+                
+                gravitySlider.addEventListener('input', e => settings.gravity = parseFloat(e.target.value));
+                windSlider.addEventListener('input', e => settings.wind = parseFloat(e.target.value));
+                gravitySlider.addEventListener('change', saveSettings);
+                windSlider.addEventListener('change', saveSettings);
+
+                clearBtn.addEventListener('click', () => fireworks.forEach(f => f.fade = true));
+                finaleBtn.addEventListener('click', startFinale);
+                sparklerBtn.addEventListener('click', toggleSparklerMode);
+                themeBtn.addEventListener('click', toggleTheme);
+                soundBtn.addEventListener('click', toggleSound);
+                recordBtn.addEventListener('click', toggleRecording);
+                toggleControlsBtn.addEventListener('click', () => controlsPanel.classList.toggle('visible'));
+            }
+            
+            function startExperience() {
+                startOverlay.style.display = 'none';
+                bgVideo.play().catch(e => console.error("Video autoplay failed", e));
+                initAudio();
+                autoShow();
+                loop(0);
+            }
+
+            startOverlay.querySelector('#diya-container').addEventListener('click', startExperience, { once: true });
+
+
+            function resizeCanvas() {
+                width = canvas.width = window.innerWidth;
+                height = canvas.height = window.innerHeight;
+                worldWidth = width * 1.5;
+                cameraX = (worldWidth - width) / 2;
+                createStarfield();
+            }
+
+            function createStarfield() {
+                starfield = [];
+                const starCount = settings.theme === 'night' ? 200 : 0;
+                for (let i = 0; i < starCount; i++) {
+                    const baseAlpha = Math.random() * 0.5 + 0.5;
+                    starfield.push({
+                        x: Math.random() * worldWidth,
+                        y: Math.random() * height,
+                        radius: Math.random() * 1.2,
+                        alpha: baseAlpha,
+                        baseAlpha: baseAlpha,
+                        twinkleOffset: Math.random() * Math.PI * 2
+                    });
+                }
+            }
+
+            // --- Settings Management ---
+            function saveSettings() {
+                localStorage.setItem('fireBlastSettings', JSON.stringify(settings));
+            }
+
+            function loadSettings() {
+                const saved = localStorage.getItem('fireBlastSettings');
+                if (saved) {
+                    const parsedSettings = JSON.parse(saved);
+                    Object.assign(settings, parsedSettings);
+                }
+                applySettings();
+            }
+            
+            function applySettings() {
+                gravitySlider.value = settings.gravity;
+                windSlider.value = settings.wind;
+                document.documentElement.setAttribute('data-theme', settings.theme);
+                updateSoundButton();
+                updateThemeIcon();
+            }
+            
+            function toggleTheme() {
+                settings.theme = settings.theme === 'night' ? 'day' : 'night';
+                document.documentElement.setAttribute('data-theme', settings.theme);
+                updateThemeIcon();
+                createStarfield();
+                saveSettings();
+            }
+
+            function updateThemeIcon() {
+                const icon = document.getElementById('themeIcon');
+                if (settings.theme === 'night') {
+                    icon.innerHTML = `<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>`;
+                } else {
+                    icon.innerHTML = `<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>`;
+                }
+            }
+            
+            // --- Main Loop ---
+            function loop(currentTime) {
+                const deltaTime = (currentTime - lastTime) / 1000;
+                lastTime = currentTime;
+                
+                update(deltaTime);
+                draw();
+                
+                requestAnimationFrame(loop);
+            }
+            
+            function update(dt) {
+                const timeFactor = dt * 60; // Normalize updates to a 60fps baseline
+
+                // Update fireworks
+                let i = fireworks.length;
+                while (i--) {
+                    if (fireworks[i].update(timeFactor)) {
+                        fireworks.splice(i, 1);
+                    }
+                }
+
+                // Update particles
+                let j = particles.length;
+                while (j--) {
+                    if (particles[j].update(timeFactor)) {
+                        particles.splice(j, 1);
+                    }
+                }
+
+                if (screenShake.duration > 0) {
+                    screenShake.duration -= timeFactor;
+                    screenShake.intensity = screenShake.duration / 10; // Fade out intensity
+                }
+            }
+            
+            function draw() {
+                ctx.save();
+                
+                // Screen Shake
+                if (screenShake.duration > 0) {
+                    const dx = (Math.random() - 0.5) * screenShake.intensity;
+                    const dy = (Math.random() - 0.5) * screenShake.intensity;
+                    ctx.translate(dx, dy);
+                }
+
+                // Motion blur effect
+                ctx.globalCompositeOperation = 'destination-out';
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+                ctx.fillRect(0, 0, width, height); 
+                
+                ctx.restore();
+                
+                ctx.save();
+                ctx.translate(-cameraX, 0);
+                ctx.globalCompositeOperation = 'lighter';
+                
+                drawBackground(); // Draws stars in world space
+
+                fireworks.forEach(f => f.draw());
+                particles.forEach(p => p.draw());
+                
+                ctx.restore();
+
+                drawGroundReflection();
+            }
+
+
+            function drawBackground() {
+                if (settings.theme === 'night') {
+                    for (const star of starfield) {
+                        const twinkle = Math.sin(Date.now() * 0.0005 + star.twinkleOffset) * 0.2;
+                        star.alpha = Math.max(0.1, Math.min(1, star.baseAlpha + twinkle));
+                        
+                        ctx.beginPath();
+                        ctx.arc(star.x, star.y, star.radius, 0, Math.PI * 2);
+                        ctx.fillStyle = `rgba(255, 255, 255, ${star.alpha})`;
+                        ctx.fill();
+                    }
+                }
+            }
+
+
+            // --- Input Handling ---
+            function handlePointerDown(e) {
+                e.preventDefault();
+                const touches = e.changedTouches ? Array.from(e.changedTouches) : [e];
+                lastPointerPos = { x: touches[0].clientX, y: touches[0].clientY };
+
+                if (sparklerMode) {
+                    playFizzSound();
+                } else {
+                    touches.forEach(touch => {
+                        const screenX = touch.clientX;
+                        const screenY = touch.clientY;
+                        const worldX = screenX + cameraX;
+                        launchFirework(worldX, screenY);
+                    });
+                }
+            }
+            
+            function handlePointerMove(e) {
+                if (sparklerMode && e.buttons === 1) { // If pointer is down
+                    const currentPos = { x: e.clientX, y: e.clientY };
+                    
+                    const dist = Math.hypot(currentPos.x - lastPointerPos.x, currentPos.y - lastPointerPos.y);
+                    const angle = Math.atan2(currentPos.y - lastPointerPos.y, currentPos.x - lastPointerPos.x);
+
+                    for (let i = 0; i < dist; i += 5) {
+                        const x = lastPointerPos.x + Math.cos(angle) * i + cameraX;
+                        const y = lastPointerPos.y + Math.sin(angle) * i;
+                        for(let j=0; j<2; j++) {
+                           particles.push(new Particle(x, y, COLORS[0], {type: 'sparkler'}));
+                        }
+                    }
+                    
+                    lastPointerPos = currentPos;
+                }
+            }
+
+
+            function handleCameraPan(e) {
+                const mouseXNorm = e.clientX / width; // 0 to 1
+                const targetCameraX = mouseXNorm * (worldWidth - width);
+                cameraX += (targetCameraX - cameraX) * 0.08; 
+
+                const bgPanX = cameraX * 0.5; 
+                backgroundOverlay.style.transform = `translate(calc(-50% - ${bgPanX}px), -50%)`;
+                bgVideo.style.transform = `translate(calc(-50% - ${bgPanX}px), -50%)`;
+            }
+
+            function handleDeviceTilt(e) {
+                const gamma = e.gamma; 
+                if (gamma === null) return;
+                
+                const tiltX = Math.max(-1, Math.min(1, gamma / 45));
+                const targetCameraX = (tiltX * 0.5 + 0.5) * (worldWidth - width);
+                cameraX += (targetCameraX - cameraX) * 0.08;
+            }
+
+            function launchFirework(x, y, type = null) {
+                updateCombo();
+                checkMissionProgress({ type: 'launch', fireworkType: type });
+
+                const fireworkType = type || Object.values(FIREWORK_TYPES)[Math.floor(Math.random() * Object.values(FIREWORK_TYPES).length)];
+                const color = COLORS[Math.floor(Math.random() * COLORS.length)];
+                
+                switch(fireworkType) {
+                    case FIREWORK_TYPES.AERIAL_BURST:
+                    case FIREWORK_TYPES.WILLOW:
+                    case FIREWORK_TYPES.CROSSETTE:
+                    case FIREWORK_TYPES.PEONY:
+                    case FIREWORK_TYPES.RING:
+                    case FIREWORK_TYPES.MULTI_BREAK:
+                        fireworks.push(new Firework(x, y, x, height, color, false, fireworkType));
+                        break;
+                    case FIREWORK_TYPES.ROCKET:
+                         fireworks.push(new Firework(x, y, x, height, color, true, FIREWORK_TYPES.AERIAL_BURST));
+                        break;
+                    case FIREWORK_TYPES.FOUNTAIN:
+                        createFountain(x, height, color);
+                        break;
+                    case FIREWORK_TYPES.GROUND_CRACKER:
+                    case FIREWORK_TYPES.CHAKRI:
+                        createGroundCracker(x, height, color, fireworkType);
+                        break;
+                }
+                playSound(sounds.launch, 0.5);
+            }
+
+            function autoShow() {
+                const initialOffset = (worldWidth - width) / 2;
+                const sequence = [
+                    () => launchFirework(width * 0.2 + initialOffset, height * 0.2, FIREWORK_TYPES.WILLOW),
+                    () => launchFirework(width * 0.8 + initialOffset, height * 0.3, FIREWORK_TYPES.CROSSETTE),
+                    () => launchFirework(width * 0.5 + initialOffset, height * 0.1, FIREWORK_TYPES.RING),
+                    () => launchFirework(width * 0.3 + initialOffset, height * 0.4, FIREWORK_TYPES.PEONY),
+                    () => launchFirework(width * 0.7 + initialOffset, height * 0.5, FIREWORK_TYPES.MULTI_BREAK)
+                ];
+
+                sequence.forEach((fireworkFn, i) => {
+                    setTimeout(fireworkFn, 500 + i * 800);
+                });
+            }
+            
+
+            // --- Firework & Particle Classes ---
+            class Firework {
+                constructor(targetX, targetY, startX, startY, color, hasTrail = false, explosionType = FIREWORK_TYPES.AERIAL_BURST) {
+                    this.x = startX;
+                    this.y = startY;
+                    this.startX = startX;
+                    this.startY = startY;
+                    this.targetX = targetX;
+                    this.targetY = targetY;
+                    this.distanceToTarget = Math.hypot(targetX - startX, targetY - startY);
+                    this.distanceTraveled = 0;
+                    this.angle = Math.atan2(targetY - startY, targetX - startX);
+                    this.speed = 3;
+                    this.acceleration = 1.05;
+                    this.color = color;
+                    this.hasTrail = hasTrail;
+                    this.explosionType = explosionType;
+                    this.fade = false;
+                    this.alpha = 1;
+                }
+
+                update(timeFactor) {
+                    if (this.fade) {
+                        this.alpha -= 0.05 * timeFactor;
+                        return this.alpha <= 0;
+                    }
+                    this.speed *= (1 + (this.acceleration - 1) * timeFactor);
+                    const vx = Math.cos(this.angle) * this.speed;
+                    const vy = Math.sin(this.angle) * this.speed;
+                    this.distanceTraveled += Math.hypot(vx * timeFactor, vy * timeFactor);
+                    
+                    if (this.distanceTraveled >= this.distanceToTarget) {
+                        createExplosion(this.targetX, this.targetY, this.color, this.explosionType);
+                        return true;
+                    } else {
+                        this.x += vx * timeFactor;
+                        this.y += vy * timeFactor;
+                        if(this.hasTrail && Math.random() > 0.7) {
+                             particles.push(new Particle(this.x, this.y, this.color, { lifespan: 20, size: 1.5, type: 'trail' }));
+                        }
+                    }
+                    return false;
+                }
+
+                draw() {
+                    ctx.beginPath();
+                    ctx.moveTo(this.x, this.y);
+                    ctx.lineTo(this.x - Math.cos(this.angle) * this.speed * 1.5, this.y - Math.sin(this.angle) * this.speed * 1.5);
+                    ctx.lineWidth = 2;
+                    ctx.strokeStyle = `rgba(${this.color.r}, ${this.color.g}, ${this.color.b}, ${this.alpha})`;
+                    ctx.stroke();
+                }
+            }
+
+            class Particle {
+                constructor(x, y, color, options = {}) {
+                    this.x = x;
+                    this.y = y;
+                    this.color = color;
+                    this.lifespan = options.lifespan || Math.random() * 60 + 80;
+                    this.size = options.size || Math.random() * 1.5 + 1;
+                    this.type = options.type || 'normal';
+                    this.canSplit = options.canSplit || false;
+                    this.breakCount = options.breakCount || 0;
+                    
+                    const angle = options.angle || Math.random() * Math.PI * 2;
+                    const speed = options.speed || Math.random() * 6 + 2;
+                    
+                    this.vx = Math.cos(angle) * speed;
+                    this.vy = Math.sin(angle) * speed;
+                    
+                    if (this.type === 'fountain') {
+                        this.vx = (Math.random() - 0.5) * 3;
+                        this.vy = -Math.random() * 10 - 5;
+                    } else if (this.type === 'cracker') {
+                         this.vx = Math.cos(angle) * (speed * 0.5);
+                         this.vy = Math.sin(angle) * (speed * 0.5);
+                    } else if (this.type === 'trail' || this.type === 'sparkler') {
+                        this.vx = (Math.random() - 0.5) * 0.5;
+                        this.vy = (Math.random() - 0.5) * 0.5;
+                    }
+
+                    this.alpha = 1;
+                    this.drag = options.drag || 0.98;
+                }
+
+                update(timeFactor) {
+                    this.x += (this.vx + settings.wind) * timeFactor;
+                    this.y += this.vy * timeFactor;
+                    this.vy += settings.gravity * timeFactor;
+
+                    this.vx *= Math.pow(this.drag, timeFactor);
+                    this.vy *= Math.pow(this.drag, timeFactor);
+                    
+                    this.lifespan -= timeFactor;
+                    
+                    if (this.canSplit && this.lifespan < 50 && this.lifespan > 48) {
+                        this.split();
+                        return true; // Remove original particle
+                    }
+
+                    if (this.breakCount > 0 && this.lifespan < 40 && this.lifespan > 38) {
+                        createExplosion(this.x, this.y, this.color, FIREWORK_TYPES.AERIAL_BURST, this.breakCount - 1);
+                        return true;
+                    }
+
+                    if(this.lifespan <= 20) {
+                        this.alpha = this.lifespan / 20;
+                    }
+                    
+                    return this.lifespan <= 0;
+                }
+
+                split() {
+                     for (let i = 0; i < 4; i++) {
+                        const angle = i * (Math.PI / 2);
+                        particles.push(new Particle(this.x, this.y, this.color, {
+                            lifespan: 40,
+                            size: this.size * 0.7,
+                            angle: angle,
+                            speed: 2
+                        }));
+                    }
+                }
+
+                draw() {
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                    ctx.fillStyle = `rgba(${this.color.r}, ${this.color.g}, ${this.color.b}, ${this.alpha})`;
+                    ctx.fill();
+                }
+            }
+            
+            // --- Special Effects ---
+            function createExplosion(x, y, color, type, breakCount = 0) {
+                const haptics = {
+                    [FIREWORK_TYPES.WILLOW]: [50, 100, 200],
+                    [FIREWORK_TYPES.CROSSETTE]: [20,30,20,30,20],
+                    default: [50]
+                }
+                navigator.vibrate?.(haptics[type] || haptics.default);
+                
+                if (type === FIREWORK_TYPES.WILLOW || type === FIREWORK_TYPES.RING) {
+                     triggerScreenShake(4);
+                }
+
+                let particleCount = 200;
+                let particleOptions = { breakCount: breakCount };
+                
+                switch(type) {
+                    case FIREWORK_TYPES.WILLOW:
+                        particleCount = 100;
+                        particleOptions.lifespan = Math.random() * 100 + 120;
+                        particleOptions.drag = 0.95; 
+                        playSound(sounds.crackle);
+                        break;
+                    case FIREWORK_TYPES.CROSSETTE:
+                        particleCount = 30;
+                        particleOptions.canSplit = true;
+                        particleOptions.speed = Math.random() * 4 + 4;
+                        break;
+                    case FIREWORK_TYPES.PEONY:
+                         particleCount = 150;
+                         particleOptions.drag = 0.99;
+                         particleOptions.lifespan = 50;
+                         break;
+                    case FIREWORK_TYPES.RING:
+                        particleCount = 80;
+                        for (let i = 0; i < particleCount; i++) {
+                            const angle = (i / particleCount) * Math.PI * 2;
+                            particles.push(new Particle(x, y, color, { angle: angle, speed: 5, lifespan: 100 }));
+                        }
+                        particleCount = 0; // Prevent default loop
+                        break;
+                     case FIREWORK_TYPES.MULTI_BREAK:
+                        particleCount = 12;
+                        particleOptions.breakCount = 1;
+                        particleOptions.speed = 8;
+                        particleOptions.lifespan = 80;
+                        break;
+                    default: // AERIAL_BURST
+                        particleCount = 200;
+                        break;
+                }
+
+                for (let i = 0; i < particleCount; i++) {
+                    particles.push(new Particle(x, y, color, particleOptions));
+                }
+                
+                 // Smoke
+                for(let i=0; i<15; i++) {
+                    particles.push(new Particle(x, y, {r:100, g:100, b:100}, {lifespan: 150, size: Math.random() * 5 + 5}));
+                }
+                playSound(sounds.explode);
+            }
+
+            function createFountain(x, y, color) {
+                const particleCount = 20;
+                 for (let i = 0; i < particleCount; i++) {
+                    setTimeout(() => {
+                        for(let j=0; j<10; j++) {
+                           particles.push(new Particle(x, y, color, {type: 'fountain'}));
+                        }
+                    }, i * 50);
+                 }
+            }
+
+            function createGroundCracker(x, y, color, type) {
+                 navigator.vibrate?.([20,30,20,30,20]);
+                let angle = 0;
+                const spins = type === FIREWORK_TYPES.CHAKRI ? 10 : 5;
+                const duration = 2000;
+                const interval = 20;
+                const steps = duration / interval;
+                const angleIncrement = (Math.PI * 2 * spins) / steps;
+                
+                const intervalId = setInterval(() => {
+                    const speed = type === FIREWORK_TYPES.CHAKRI ? 5 : 2;
+                    const particlesPerTick = type === FIREWORK_TYPES.CHAKRI ? 10 : 5;
+                    for(let i=0; i<particlesPerTick; i++) {
+                         const particleAngle = angle + (Math.PI / (particlesPerTick / 2)) * i;
+                         particles.push(new Particle(x, y, color, {type: 'cracker', angle: particleAngle, lifespan: 50, speed: speed}));
+                    }
+                    angle += angleIncrement;
+                }, interval);
+
+                setTimeout(() => clearInterval(intervalId), duration);
+            }
+
+            function drawGroundReflection() {
+                const groundY = height * 0.9;
+                ctx.save();
+                
+                // Draw a subtle horizon line
+                const horizonGradient = ctx.createLinearGradient(0, groundY - 20, 0, groundY);
+                horizonGradient.addColorStop(0, 'transparent');
+                horizonGradient.addColorStop(1, 'rgba(0,0,5,0.2)');
+                ctx.fillStyle = horizonGradient;
+                ctx.fillRect(-cameraX, groundY - 20, worldWidth, 20);
+
+                ctx.globalCompositeOperation = 'lighter';
+                
+                // Reflect particles
+                const allBrightThings = [...particles, ...fireworks];
+                for (const p of allBrightThings) {
+                    const worldX = p.x - cameraX; 
+                    if (p.y < groundY && p.alpha > 0.2) {
+                        const reflectionY = groundY + (groundY - p.y);
+                        const distanceFactor = Math.max(0, 1 - (p.y / groundY));
+                        const alpha = p.alpha * 0.2 * distanceFactor;
+                        const size = (p.size || 2) * distanceFactor;
+
+                        ctx.beginPath();
+                        ctx.ellipse(worldX, reflectionY, size, size * 2, 0, 0, Math.PI * 2);
+                        ctx.fillStyle = `rgba(${p.color.r}, ${p.color.g}, ${p.color.b}, ${alpha})`;
+                        ctx.fill();
+                    }
+                }
+                ctx.restore();
+            }
+
+            function startFinale() {
+                const duration = 8000; // 8 seconds
+                const interval = 200; // Launch every 200ms
+                
+                const finaleInterval = setInterval(() => {
+                    const randomX = Math.random() * worldWidth;
+                    const randomY = Math.random() * (height * 0.5);
+                    launchFirework(randomX, randomY);
+                }, interval);
+
+                setTimeout(() => clearInterval(finaleInterval), duration);
+            }
+            
+            function toggleSparklerMode() {
+                sparklerMode = !sparklerMode;
+                sparklerBtn.classList.toggle('active', sparklerMode);
+                canvas.style.cursor = sparklerMode ? 'crosshair' : 'pointer';
+            }
+
+            function updateCombo() {
+                comboCount++;
+                comboMeter.textContent = `x${comboCount}`;
+                comboMeter.classList.remove('pop');
+                void comboMeter.offsetWidth; // Trigger reflow
+                comboMeter.classList.add('pop');
+                comboMeter.classList.add('visible');
+                
+                checkMissionProgress({ type: 'combo', value: comboCount });
+
+                clearTimeout(comboTimeout);
+                comboTimeout = setTimeout(() => {
+                    comboCount = 0;
+                    comboMeter.classList.remove('visible');
+                }, 2000);
+            }
+
+            function triggerScreenShake(intensity) {
+                screenShake.intensity = intensity;
+                screenShake.duration = 10; // Frames
+            }
+
+
+            // --- Audio System ---
+            function initAudio() {
+                if (!audioContext) {
+                    try {
+                        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                        loadAllSounds();
+                    } catch(e) {
+                        console.error("Web Audio API is not supported in this browser.");
+                    }
+                }
+            }
+
+            async function loadSound(url) {
+                if (audioBuffers[url]) return audioBuffers[url];
+                try {
+                    const response = await fetch(url);
+                    const arrayBuffer = await response.arrayBuffer();
+                    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+                    audioBuffers[url] = audioBuffer;
+                    return audioBuffer;
+                } catch (error) {
+                    console.error(`Error loading sound: ${url}`, error);
+                }
+            }
+            
+            function loadAllSounds() {
+                 Object.values(sounds).flat().forEach(url => loadSound(url));
+                 loadSound(sounds.ambient).then(buffer => {
+                     if (settings.sound) playAmbient(buffer);
+                 });
+            }
+
+            function playSound(soundKey, volume = 1) {
+                if (!settings.sound || !audioContext) return;
+                
+                let url;
+                if(Array.isArray(soundKey)) {
+                    url = soundKey[Math.floor(Math.random() * soundKey.length)];
+                } else {
+                    url = soundKey;
+                }
+
+                const buffer = audioBuffers[url];
+                if (buffer) {
+                    const source = audioContext.createBufferSource();
+                    source.buffer = buffer;
+                    const gainNode = audioContext.createGain();
+                    gainNode.gain.setValueAtTime(volume, audioContext.currentTime);
+                    source.connect(gainNode).connect(audioContext.destination);
+                    source.start(0);
+                }
+            }
+
+            function playFizzSound() {
+                if (!settings.sound || !audioContext || fizzSource) return;
+                const buffer = audioBuffers[sounds.fizz];
+                if (buffer) {
+                    fizzSource = audioContext.createBufferSource();
+                    fizzSource.buffer = buffer;
+                    fizzSource.loop = true;
+                    fizzSource.connect(audioContext.destination);
+                    fizzSource.start(0);
+                }
+            }
+
+            function stopFizzSound() {
+                if(fizzSource) {
+                    fizzSource.stop();
+                    fizzSource = null;
+                }
+            }
+
+
+            function playAmbient(buffer) {
+                if (ambientSource) ambientSource.stop();
+                if(!buffer || !audioContext) return;
+
+                ambientSource = audioContext.createBufferSource();
+                ambientSource.buffer = buffer;
+                ambientSource.loop = true;
+                const gainNode = audioContext.createGain();
+                gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                ambientSource.connect(gainNode).connect(audioContext.destination);
+                ambientSource.start(0);
+            }
+
+            function toggleSound() {
+                settings.sound = !settings.sound;
+                updateSoundButton();
+                if(settings.sound) {
+                    initAudio(); // Initialize if not already
+                    if(audioBuffers[sounds.ambient] && (!ambientSource || ambientSource.playbackState !== 'playing')) {
+                         playAmbient(audioBuffers[sounds.ambient]);
+                    } else if(ambientSource) {
+                        ambientSource.connect(audioContext.destination);
+                    }
+                } else {
+                    if (ambientSource) {
+                        ambientSource.disconnect();
+                    }
+                    stopFizzSound();
+                }
+                saveSettings();
+            }
+
+            function updateSoundButton() {
+                soundBtn.classList.toggle('active', settings.sound);
+                const icon = document.getElementById('soundIcon');
+                if (settings.sound) {
+                    icon.innerHTML = `<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>`;
+                } else {
+                    icon.innerHTML = `<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line>`;
+                }
+            }
+            
+            // --- Mission System ---
+            function generateNewMission() {
+                const missions = [
+                    { type: 'combo', target: 25, text: "Mission: Get a 25x Combo!" },
+                    { type: 'launch', target: 5, fireworkType: FIREWORK_TYPES.WILLOW, text: "Challenge: Launch 5 'Willows'!" }
+                ];
+                currentMission = missions[Math.floor(Math.random() * missions.length)];
+                currentMission.progress = 0;
+            }
+
+            function checkMissionProgress(action) {
+                if (!currentMission || currentMission.completed) return;
+
+                if (action.type === 'combo' && currentMission.type === 'combo') {
+                    if (action.value >= currentMission.target) {
+                        completeMission();
+                    }
+                } else if (action.type === 'launch' && currentMission.type === 'launch') {
+                    if(action.fireworkType === currentMission.fireworkType) {
+                        currentMission.progress++;
+                        if (currentMission.progress >= currentMission.target) {
+                            completeMission();
+                        }
+                    }
+                }
+            }
+
+            function completeMission() {
+                if (currentMission.completed) return;
+                currentMission.completed = true;
+                missionNotifier.textContent = "Mission Complete!";
+                missionNotifier.classList.add('visible');
+                playSound(sounds.mission);
+
+                setTimeout(() => {
+                    missionNotifier.classList.remove('visible');
+                    generateNewMission();
+                }, 3000);
+            }
+
+
+            // --- Media Recorder ---
+            function toggleRecording() {
+                if (isRecording) {
+                    stopRecording();
+                } else {
+                    startRecording();
+                }
+            }
+            
+            function startRecording() {
+                if (!('MediaRecorder' in window)) {
+                    alert('Recording is not supported in your browser.');
+                    return;
+                }
+                const stream = canvas.captureStream(30);
+                mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+                recordedChunks = [];
+                mediaRecorder.ondataavailable = e => recordedChunks.push(e.data);
+                mediaRecorder.onstop = exportVideo;
+                mediaRecorder.start();
+                isRecording = true;
+                recordIndicator.setAttribute('visibility', 'visible');
+                
+                setTimeout(stopRecording, 10000); // Auto-stop after 10 seconds
+            }
+
+            function stopRecording() {
+                 if (mediaRecorder && mediaRecorder.state === "recording") {
+                    mediaRecorder.stop();
+                    isRecording = false;
+                    recordIndicator.setAttribute('visibility', 'hidden');
+                }
+            }
+
+            function exportVideo() {
+                const blob = new Blob(recordedChunks, { type: 'video/webm' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                document.body.appendChild(a);
+                a.style.display = 'none';
+                a.href = url;
+                a.download = 'fireblast_show.webm';
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+            }
+
+            // --- Clear Sky ---
+            clearBtn.addEventListener('click', () => {
+                fireworks = [];
+                particles = [];
+            });
+
+
+            init();
+        });
+    </script>
+</body>
+</html>
+
